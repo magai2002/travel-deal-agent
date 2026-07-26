@@ -1,0 +1,17 @@
+[Unit]
+Description=Travel deal check (single run)
+After=network-online.target influxdb.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/root/travel-deal-agent
+EnvironmentFile=/root/travel-deal-agent/.env
+ExecStart=/root/travel-deal-agent/venv/bin/python -m src.main
+# Keep this off the same priority as latency-sensitive services (Pi-hole, Nginx)
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+[Install]
+WantedBy=multi-user.target

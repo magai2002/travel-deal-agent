@@ -1,0 +1,174 @@
+# ── Global defaults ──────────────────────────────────────────────
+settings:
+  home_base: BRU
+  currency: EUR
+  timezone: Europe/Brussels
+
+  # Applies to any route tagged category: weekend
+  weekend_trip:
+    search_window_weeks: 10        # only look 10 weeks ahead — keeps request count sane
+    trip_length_nights: [1, 2, 3]
+    depart_weekday: [FRI, SAT]
+    return_weekday: [SUN, MON]
+
+  # Applies to any route tagged category: longhaul
+  longhaul:
+    search_window_weeks: 26
+    flexible_dates: true
+    min_trip_nights: 4
+    max_trip_nights: 14
+
+notifications:
+  channel: ntfy
+  ntfy_topic: alexey-travel-a7f2x
+  ntfy_server: https://ntfy.sh      # swap for a self-hosted instance on alexeymagay.com later
+
+# ── Routes — add/remove/edit freely, nothing else needs to change ──
+routes:
+  - name: "Brussels -> Paris"
+    origin: BRU
+    destination: PAR
+    modes: [flixbus, flight]
+    category: weekend
+    threshold:
+      type: percent_below_avg
+      value: 30              # flag if price is >=30% below the rolling average
+      lookback_days: 180
+    hard_cap_eur: 35          # always flag below this, even with no history yet
+
+  - name: "Brussels -> Amsterdam"
+    origin: BRU
+    destination: AMS
+    modes: [flixbus]
+    category: weekend
+    threshold:
+      type: percent_below_avg
+      value: 25
+      lookback_days: 180
+    hard_cap_eur: 20
+
+  - name: "Brussels -> Barcelona"
+    origin: BRU
+    destination: BCN
+    modes: [flight]
+    category: weekend
+    threshold:
+      type: percent_below_avg
+      value: 35
+      lookback_days: 180
+    hard_cap_eur: 60
+
+  - name: "Brussels -> Dubai"
+    origin: BRU
+    destination: DXB
+    modes: [flight]
+    category: longhaul
+    threshold:
+      type: percent_below_avg
+      value: 35
+      lookback_days: 365
+    hard_cap_eur: 350
+
+  - name: "Brussels -> Astana"
+    origin: BRU
+    destination: NQZ
+    modes: [flight]
+    category: longhaul
+    threshold:
+      type: percent_below_avg
+      value: 30
+      lookback_days: 365
+    hard_cap_eur: 450
+
+  - name: "Brussels -> Almaty"
+    origin: BRU
+    destination: ALA
+    modes: [flight]
+    category: longhaul
+    threshold:
+      type: percent_below_avg
+      value: 30
+      lookback_days: 365
+    hard_cap_eur: 450
+
+  - name: "Brussels -> Abu Dhabi"
+    origin: BRU
+    destination: AUH
+    modes: [flight]
+    category: longhaul
+    threshold:
+      type: percent_below_avg
+      value: 35
+      lookback_days: 365
+    hard_cap_eur: 400
+
+  - name: "Brussels -> Shanghai"
+    origin: BRU
+    destination: PVG
+    modes: [flight]
+    category: longhaul
+    threshold:
+      type: percent_below_avg
+      value: 30
+      lookback_days: 365
+    hard_cap_eur: 600
+
+  - name: "Brussels -> Shenzhen"
+    origin: BRU
+    destination: SZX
+    modes: [flight]
+    category: longhaul
+    threshold:
+      type: percent_below_avg
+      value: 30
+      lookback_days: 365
+    hard_cap_eur: 600
+
+  - name: "Brussels -> Hong Kong"
+    origin: BRU
+    destination: HKG
+    modes: [flight]
+    category: longhaul
+    threshold:
+      type: percent_below_avg
+      value: 30
+      lookback_days: 365
+    hard_cap_eur: 550
+
+  - name: "Brussels -> Chiang Mai"
+    origin: BRU
+    destination: CNX
+    modes: [flight]
+    category: longhaul
+    threshold:
+      type: percent_below_avg
+      value: 30
+      lookback_days: 365
+    hard_cap_eur: 500
+
+  - name: "Brussels -> Bangkok"
+    origin: BRU
+    destination: BKK
+    modes: [flight]
+    category: longhaul
+    threshold:
+      type: percent_below_avg
+      value: 30
+      lookback_days: 365
+    hard_cap_eur: 450
+
+  # Flexible: the agent explores Skyscanner's own "Everywhere"/flexible-date
+  # search scoped to Europe instead of a fixed destination, and reports back
+  # whichever city it found cheapest. destination below is a display label
+  # only — flexible_destination_region drives the actual search.
+  - name: "Brussels -> Europe (flexible)"
+    origin: BRU
+    destination: "Europe (flexible)"
+    flexible_destination_region: Europe
+    modes: [flight]
+    category: weekend
+    threshold:
+      type: percent_below_avg
+      value: 30
+      lookback_days: 180
+    hard_cap_eur: 50

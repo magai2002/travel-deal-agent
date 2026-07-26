@@ -1,0 +1,16 @@
+# Secrets / local config — never commit real credentials
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+
+# Runtime output
+logs/
+scripts/test_output/
+
+# Editor/OS cruft
+.DS_Store

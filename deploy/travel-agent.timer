@@ -1,0 +1,11 @@
+[Unit]
+Description=Run travel deal check twice a day
+
+[Timer]
+# 08:00 and 19:00 local time — before work, and back home
+OnCalendar=*-*-* 08,19:00:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target
