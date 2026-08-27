@@ -6,6 +6,9 @@ something is genuinely cheap — with an LLM writing the actual alert copy.
 A separate, on-demand conversational assistant (terminal or browser) lets
 you manage that config and ask about price history in plain English.
 
+**[Try the live demo →](https://example.com/travel-demo)** <!-- TODO: replace with the real VPS/Nginx URL once deployed --> —
+one real request per visitor per day, see the "Public demo" section below.
+
 ## Why this exists
 
 Two goals at once: a real AI-engineering portfolio piece, and something
@@ -60,7 +63,11 @@ src/assistant/                  <- separate on-demand conversational assistant (
   cli.py                            <- terminal chat: python -m src.assistant.cli
   web.py                            <- FastAPI + browser chat: uvicorn src.assistant.web:app
   static/index.html                <- the browser frontend, single file, no build step
-deploy/                          <- systemd units: batch-run timer + assistant web service
+src/demo/                       <- public, unauthenticated one-try showcase (see below)
+  app.py                            <- FastAPI: uvicorn src.demo.app:app
+  rate_limit.py                     <- per-IP-per-day + global daily cap, sqlite-backed
+  static/index.html                <- the demo frontend, single file
+deploy/                          <- systemd units: batch-run timer, assistant web, demo
 ```
 
 ## Setup
@@ -120,6 +127,32 @@ LangGraph `thread_id`s) in the same local SQLite checkpoint file
 (`ASSISTANT_STATE_DB`), so either one can be killed and resumed later
 without losing context.
 
+### Public demo
+
+`src/demo/` is a separate, much narrower app meant to be linked publicly —
+unlike the assistant, it has **no auth and no config-mutating tools at
+all**. A visitor types a free-text request, one cheap Claude call (Haiku,
+forced tool-choice, no agent loop) extracts the route, and — only for
+Brussels ↔ Paris, the one route Flixbus has real city IDs mapped for (see
+`CITY_IDS` in `src/collectors/flixbus.py`) — a real live Flixbus price gets
+fetched and scored through the same `evaluate()` threshold logic the batch
+job uses. Anything else gets a friendly decline instead of a fabricated
+price. Nothing is written anywhere (no InfluxDB write, no config write),
+and it's rate-limited to one exchange per visitor per day plus a global
+daily cap, both enforced server-side via a small SQLite file
+(`src/demo/rate_limit.py`) so the limit survives a restart.
+
+```bash
+uvicorn src.demo.app:app --host 127.0.0.1 --port 8788
+```
+```bash
+sudo cp deploy/travel-demo.service /etc/systemd/system/
+sudo systemctl enable --now travel-demo
+```
+Same pattern as the assistant web UI: binds to localhost only, put it
+behind Nginx for TLS/external access. Tune `DEMO_GLOBAL_DAILY_CAP` and
+`DEMO_MODEL` in `.env` if needed.
+
 ## Roadmap
 
 1. ✅ Config schema, date logic, Flixbus collector, storage, thresholds, notify, digest
@@ -128,9 +161,10 @@ without losing context.
    alert rule on `travel_agent_last_success_unixtime` still to be set up on
    the VPS
 4. ✅ Conversational assistant (LangGraph) for config edits + price Q&A, terminal and web
-5. Grafana panel over the `travel_deals` bucket for a price-history view
-6. Turn `src/agent/digest.py` into an actual planning step: given a daily
+5. ✅ Public, rate-limited demo app for the README link
+6. Grafana panel over the `travel_deals` bucket for a price-history view
+7. Turn `src/agent/digest.py` into an actual planning step: given a daily
    request budget, have the model choose which routes/dates are worth
    checking rather than iterating every candidate date deterministically
-7. Optional: self-host the Flixbus API wrapper in Docker on the VPS instead
+8. Optional: self-host the Flixbus API wrapper in Docker on the VPS instead
    of depending on the public community instance

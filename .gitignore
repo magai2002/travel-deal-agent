@@ -12,6 +12,7 @@ venv/
 logs/
 scripts/test_output/
 assistant_state.db
+demo_rate_limit.db
 
 # Editor/OS cruft
 .DS_Store

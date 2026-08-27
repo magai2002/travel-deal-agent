@@ -1,0 +1,22 @@
+[Unit]
+Description=Travel deal agent — public demo
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/travel-deal-agent
+EnvironmentFile=/root/travel-deal-agent/.env
+# Binds to localhost only — put this behind the box's existing Nginx for
+# TLS and external access rather than exposing uvicorn directly. No auth
+# on this app itself (it's the public demo) — rate limiting is internal
+# (src/demo/rate_limit.py).
+ExecStart=/root/travel-deal-agent/venv/bin/uvicorn src.demo.app:app --host 127.0.0.1 --port 8788
+Restart=on-failure
+RestartSec=5
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+[Install]
+WantedBy=multi-user.target

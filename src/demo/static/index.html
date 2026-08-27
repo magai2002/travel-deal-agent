@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Travel Deal Agent — Live Demo</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #12131a;
+    --panel: #1b1d27;
+    --border: #2b2d3a;
+    --text: #e6e6ea;
+    --muted: #9497a8;
+    --accent: #6c8cff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    padding: 2.5rem 1rem;
+  }
+  main { width: 100%; max-width: 620px; }
+  h1 { font-size: 1.4rem; margin-bottom: 0.3rem; }
+  p.lead { color: var(--muted); line-height: 1.5; margin-top: 0; }
+  .badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    padding: 0.1rem 0.6rem;
+    margin-bottom: 0.8rem;
+  }
+  #log {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    margin: 1.2rem 0;
+  }
+  .msg { white-space: pre-wrap; line-height: 1.5; padding: 0.7rem 0.9rem; border-radius: 10px; }
+  .msg.user { background: var(--accent); align-self: flex-end; max-width: 85%; }
+  .msg.assistant { background: var(--panel); border: 1px solid var(--border); }
+  form { display: flex; gap: 0.6rem; }
+  input[type=text] {
+    flex: 1;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.6rem 0.8rem;
+    font: inherit;
+  }
+  button {
+    font: inherit;
+    border: none;
+    border-radius: 8px;
+    padding: 0 1.2rem;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+  }
+  button:disabled, input:disabled { opacity: 0.5; cursor: default; }
+  footer { margin-top: 1.5rem; color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
+</style>
+</head>
+<body>
+<main>
+  <div class="badge">live demo · one try per visitor per day</div>
+  <h1>Travel Deal Agent</h1>
+  <p class="lead">
+    Ask about a trip and this triggers the real pipeline: a Claude call reads
+    your request, then a live Flixbus price check runs and gets scored
+    against the same deal logic the production agent uses. Only
+    Brussels ↔ Paris has real data behind it — everything else gets a
+    friendly explanation of why.
+  </p>
+
+  <div id="log"></div>
+
+  <form id="form">
+    <input id="input" type="text" placeholder="e.g. what's a trip from Brussels to Paris cost?" autofocus>
+    <button id="send" type="submit">Try it</button>
+  </form>
+
+  <footer>
+    One request per visitor per day, plus a small daily cap overall — this
+    is a portfolio demo, not a hosted service. Full source (the daily
+    batch agent, the config/price assistant, and this demo) is linked from
+    the project README.
+  </footer>
+</main>
+
+<script>
+const log = document.getElementById("log");
+const form = document.getElementById("form");
+const input = document.getElementById("input");
+const sendBtn = document.getElementById("send");
+
+function addMsg(role, text) {
+  const el = document.createElement("div");
+  el.className = "msg " + role;
+  el.textContent = text;
+  log.appendChild(el);
+}
+
+function lockForm() {
+  input.disabled = true;
+  sendBtn.disabled = true;
+}
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (!text) return;
+
+  addMsg("user", text);
+  input.value = "";
+  input.disabled = true;
+  sendBtn.disabled = true;
+
+  try {
+    const resp = await fetch("/api/try", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    const data = await resp.json();
+    addMsg("assistant", data.message || "Something went wrong — try again later.");
+  } catch (err) {
+    addMsg("assistant", "Request failed: " + err.message);
+  } finally {
+    lockForm(); // one try per page load; the server enforces one per day
+  }
+});
+</script>
+</body>
+</html>
