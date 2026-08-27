@@ -11,6 +11,7 @@ venv/
 # Runtime output
 logs/
 scripts/test_output/
+assistant_state.db
 
 # Editor/OS cruft
 .DS_Store

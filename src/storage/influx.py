@@ -61,3 +61,43 @@ def rolling_average(route_name: str, lookback_days: int) -> float | None:
             for record in table.records:
                 return float(record.get_value())
     return None
+
+
+def price_history_summary(route_name: str, days: int = 30) -> dict | None:
+    """
+    Recent price stats for a route, for the assistant's read-only Q&A tool:
+    observation count, mean, min, max, and the most recent price + when it
+    was seen. Returns None if there's no data in the window.
+    """
+    flux = f'''
+    from(bucket: "{INFLUX_BUCKET}")
+      |> range(start: -{days}d)
+      |> filter(fn: (r) => r._measurement == "travel_price")
+      |> filter(fn: (r) => r.route == "{route_name}")
+      |> filter(fn: (r) => r._field == "price_eur")
+    '''
+    with _client() as client:
+        query_api = client.query_api()
+        tables = query_api.query(flux)
+        values: list[tuple[datetime, float]] = []
+        for table in tables:
+            for record in table.records:
+                values.append((record.get_time(), float(record.get_value())))
+
+    if not values:
+        return None
+
+    values.sort(key=lambda t: t[0])
+    prices = [v for _, v in values]
+    most_recent_time, most_recent_price = values[-1]
+
+    return {
+        "route": route_name,
+        "window_days": days,
+        "observations": len(prices),
+        "mean_eur": round(sum(prices) / len(prices), 2),
+        "min_eur": round(min(prices), 2),
+        "max_eur": round(max(prices), 2),
+        "most_recent_eur": round(most_recent_price, 2),
+        "most_recent_at": most_recent_time.isoformat(),
+    }
