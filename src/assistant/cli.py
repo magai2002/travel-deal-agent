@@ -4,7 +4,10 @@ Run with: python -m src.assistant.cli
 """
 from __future__ import annotations
 
+import logging
 import os
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -13,7 +16,18 @@ load_dotenv()
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
+from src.agent.cost import CostTracker
 from src.assistant.graph import build_graph
+
+LOG_DIR = Path("logs")
+LOG_DIR.mkdir(exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+    handlers=[RotatingFileHandler(LOG_DIR / "assistant.log", maxBytes=5_000_000, backupCount=5)],
+)
+log = logging.getLogger("travel-assistant")
 
 
 def _extract_text(content) -> str:
@@ -57,7 +71,8 @@ def _handle_result(result: dict, graph, config: dict) -> None:
 def main() -> None:
     db_path = os.environ.get("ASSISTANT_STATE_DB", "assistant_state.db")
     thread_id = os.environ.get("ASSISTANT_THREAD_ID", "default")
-    config = {"configurable": {"thread_id": thread_id}}
+    cost_tracker = CostTracker()
+    config = {"configurable": {"thread_id": thread_id, "cost_tracker": cost_tracker}}
 
     with SqliteSaver.from_conn_string(db_path) as checkpointer:
         graph = build_graph(checkpointer)
@@ -72,6 +87,9 @@ def main() -> None:
                 {"messages": [{"role": "user", "content": user_input}]}, config
             )
             _handle_result(result, graph, config)
+            log.info(cost_tracker.summary())
+
+    log.info("Session ended — %s", cost_tracker.summary())
 
 
 if __name__ == "__main__":

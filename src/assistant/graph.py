@@ -29,10 +29,12 @@ effects before it, specifically so a resume can't double up on work.
 from __future__ import annotations
 
 import os
+from types import SimpleNamespace
 from typing import Annotated, Literal
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import ToolMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
@@ -57,13 +59,29 @@ class AssistantState(TypedDict):
     messages: Annotated[list, add_messages]
 
 
-def _agent_node(state: AssistantState) -> dict:
+def _agent_node(state: AssistantState, config: RunnableConfig) -> dict:
     model = ChatAnthropic(model=MODEL_NAME).bind_tools(ALL_TOOLS)
     messages = state["messages"]
     if not messages or messages[0].type != "system":
         from langchain_core.messages import SystemMessage
         messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
     response = model.invoke(messages)
+
+    # cost_tracker is injected per-session via configurable (see cli.py) —
+    # reuses the existing CostTracker from src.agent.cost rather than a new
+    # one, so it needs an object with .input_tokens/.output_tokens
+    # attributes; usage_metadata is a plain dict, hence the adapter.
+    cost_tracker = (config.get("configurable") or {}).get("cost_tracker")
+    usage = getattr(response, "usage_metadata", None)
+    if cost_tracker is not None and usage:
+        cost_tracker.record(
+            MODEL_NAME,
+            SimpleNamespace(
+                input_tokens=usage.get("input_tokens", 0),
+                output_tokens=usage.get("output_tokens", 0),
+            ),
+        )
+
     return {"messages": [response]}
 
 
