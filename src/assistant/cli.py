@@ -17,7 +17,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
 from src.agent.cost import CostTracker
-from src.assistant.graph import build_graph
+from src.assistant.graph import build_graph, extract_text_content
 
 LOG_DIR = Path("logs")
 LOG_DIR.mkdir(exist_ok=True)
@@ -28,23 +28,6 @@ logging.basicConfig(
     handlers=[RotatingFileHandler(LOG_DIR / "assistant.log", maxBytes=5_000_000, backupCount=5)],
 )
 log = logging.getLogger("travel-assistant")
-
-
-def _extract_text(content) -> str:
-    """
-    AIMessage.content is a plain string for most models, but with extended
-    thinking (e.g. claude-sonnet-5) it's a list of blocks — thinking blocks
-    (with a long opaque signature) plus text blocks. Only the text blocks
-    are meant for the user.
-    """
-    if isinstance(content, str):
-        return content
-    parts = []
-    for block in content:
-        block_type = block.get("type") if isinstance(block, dict) else getattr(block, "type", None)
-        if block_type == "text":
-            parts.append(block["text"] if isinstance(block, dict) else block.text)
-    return "\n".join(parts)
 
 
 def _handle_result(result: dict, graph, config: dict) -> None:
@@ -65,7 +48,7 @@ def _handle_result(result: dict, graph, config: dict) -> None:
         return
 
     last_message = result["messages"][-1]
-    print(f"\nAssistant: {_extract_text(last_message.content)}\n")
+    print(f"\nAssistant: {extract_text_content(last_message.content)}\n")
 
 
 def main() -> None:

@@ -59,6 +59,23 @@ class AssistantState(TypedDict):
     messages: Annotated[list, add_messages]
 
 
+def extract_text_content(content) -> str:
+    """
+    AIMessage.content is a plain string for most models, but with extended
+    thinking (e.g. claude-sonnet-5) it's a list of blocks — thinking blocks
+    (with a long opaque signature) plus text blocks. Only the text blocks
+    are meant for the user. Shared by every frontend (cli.py, web.py).
+    """
+    if isinstance(content, str):
+        return content
+    parts = []
+    for block in content:
+        block_type = block.get("type") if isinstance(block, dict) else getattr(block, "type", None)
+        if block_type == "text":
+            parts.append(block["text"] if isinstance(block, dict) else block.text)
+    return "\n".join(parts)
+
+
 def _agent_node(state: AssistantState, config: RunnableConfig) -> dict:
     model = ChatAnthropic(model=MODEL_NAME).bind_tools(ALL_TOOLS)
     messages = state["messages"]

@@ -9,3 +9,5 @@ prometheus-client>=0.20
 langgraph
 langchain-anthropic
 langgraph-checkpoint-sqlite
+fastapi
+uvicorn
