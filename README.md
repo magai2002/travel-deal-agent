@@ -1,170 +1,92 @@
-# Travel Deal Agent
+<div align="center">
 
-A config-driven agent that checks a set of routes twice a day, compares
-prices against a rolling per-route baseline, and pushes a notification when
-something is genuinely cheap — with an LLM writing the actual alert copy.
-A separate, on-demand conversational assistant (terminal or browser) lets
-you manage that config and ask about price history in plain English.
+# ✈️ Travel Deal Agent
 
-**[Try the live demo →](https://example.com/travel-demo)** <!-- TODO: replace with the real VPS/Nginx URL once deployed --> —
-one real request per visitor per day, see the "Public demo" section below.
+### An AI agent that watches flight & bus prices around the clock — so you don't have to.
 
-## Why this exists
+![Status](https://img.shields.io/badge/status-live-brightgreen)
+![Powered by](https://img.shields.io/badge/powered%20by-Claude-6c5ce7)
+![Type](https://img.shields.io/badge/type-personal%20project-blue)
 
-Two goals at once: a real AI-engineering portfolio piece, and something
-Alexey actually uses to catch cheap weekend trips out of Brussels and
-opportunistic long-haul fares.
+**[🚀 Try the live demo →](https://example.com/travel-demo)**
 
-## How it decides what's "cheap"
+*One real, live price check per visitor per day — see it work for yourself.*
+<!-- TODO: replace with the real VPS/Nginx URL once deployed -->
 
-Not a single static threshold. Each route flags a deal if *either*:
-- the price is a configurable % below its own rolling average
-  (`percent_below_avg`, computed from price history in InfluxDB), or
-- it's below a hard € cap you set manually (a safety net before enough
-  history exists, or for "always tell me" prices).
+</div>
 
-## Why Flixbus uses a direct API but flights use a browsing agent
+---
 
-As of mid-2026, most free flight-fare APIs have gone away — Amadeus shut
-down its free Self-Service tier on July 17, 2026, and Kiwi's Tequila API
-now requires 50k+ MAU for new access. Flixbus, in contrast, still has a
-well-maintained unofficial JSON API, so bus routes are cheap direct HTTP
-calls with no browser.
+## The problem
 
-Flights go through `src/collectors/skyscanner_agent.py`: a real Claude
-agent driving a Playwright browser with a small set of text/DOM tools
-(navigate, read_page, click, fill), rather than a scraper hardcoded
-against Skyscanner's CSS. It also judges the deal verdict itself, using
-the route's threshold as its brief, and can use Skyscanner's own
-flexible-date/"Everywhere" search for routes with no fixed destination —
-one browsing session per route per run, not per candidate date.
+Finding a genuinely cheap flight or bus ticket means checking prices
+obsessively — multiple sites, multiple dates, multiple times a day —
+and still second-guessing whether "€45" is actually a good deal or just
+a normal Tuesday price. Most people give up and either overpay or miss
+the window entirely.
 
-## Architecture
+## The idea
 
-```
-config/routes.yaml            <- routes, thresholds, date rules (edit this, not code)
-src/config.py                  <- validates the YAML
-src/dates.py                    <- turns a route into a small set of candidate dates
-src/collectors/
-  flixbus.py                     <- direct JSON API, no browser
-  skyscanner_agent.py            <- Claude agent driving Playwright
-  browser.py                     <- shared Playwright browser/context setup
-src/pricing/baseline.py       <- rolling-average + hard-cap deal logic
-src/storage/influx.py          <- price history <-> InfluxDB (reuses the market-data instance)
-src/agent/
-  digest.py                      <- LLM turns raw hits into one readable notification
-  cost.py                        <- tracks estimated Claude API $ spend per run/session
-src/notify/ntfy.py             <- push notification
-src/metrics.py                  <- Prometheus run metrics (staleness/failure visibility)
-src/main.py                      <- orchestrates one full daily-batch run
-src/assistant/                  <- separate on-demand conversational assistant (see below)
-  tools.py                         <- read-only + config-mutating tools
-  graph.py                         <- LangGraph agent: routing, human-in-the-loop approval
-  cli.py                            <- terminal chat: python -m src.assistant.cli
-  web.py                            <- FastAPI + browser chat: uvicorn src.assistant.web:app
-  static/index.html                <- the browser frontend, single file, no build step
-src/demo/                       <- public, unauthenticated one-try showcase (see below)
-  app.py                            <- FastAPI: uvicorn src.demo.app:app
-  rate_limit.py                     <- per-IP-per-day + global daily cap, sqlite-backed
-  static/index.html                <- the demo frontend, single file
-deploy/                          <- systemd units: batch-run timer, assistant web, demo
-```
+**What if an AI agent did that watching for you — and knew the
+difference between a normal price and a real deal?**
 
-## Setup
+This project is exactly that: a personal travel-deal watchdog that runs
+twice a day, checks a list of routes you care about, remembers what
+"normal" looks like for each one, and only interrupts you when something
+is actually worth booking.
 
-```bash
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-playwright install chromium
-cp .env.example .env   # fill in real values
-# edit config/routes.yaml: set a real ntfy_topic, adjust routes/thresholds
-python -m src.main      # single manual run of the daily batch job
-```
+## How it works
 
-Deploy the batch job on the VPS:
-```bash
-sudo cp deploy/travel-agent.* /etc/systemd/system/
-sudo systemctl enable --now travel-agent.timer
-```
+<div align="center">
 
-### Run metrics
+| 1️⃣ | 2️⃣ | 3️⃣ | 4️⃣ |
+|:---:|:---:|:---:|:---:|
+| **You describe the trips you care about** | **The agent checks prices, twice a day, automatically** | **It compares each price to your personal history** | **You get pinged only when it's genuinely a deal** |
+| "Brussels to Rome, under €60" | Real fare data, not guesswork | Not a fixed number — a moving baseline that learns | Straight to your phone, with the reasoning included |
 
-`src/metrics.py` exports Prometheus gauges after every batch run —
-`travel_agent_last_success_unixtime` is the key one, since it's what makes
-a crashed run or a dead timer visible instead of silently indistinguishable
-from "nothing was cheap today." Backend is either a node_exporter textfile
-collector or a Pushgateway push (`METRICS_BACKEND` in `.env`); see
-`.env.example` for the paths/URL to set.
+</div>
 
-### Conversational assistant
+No dashboards to babysit. No tabs full of booking sites. Just a quiet
+notification when it's actually worth acting on.
 
-A separate entry point — doesn't touch the daily batch run at all. Built on
-LangGraph: typed state, conditional routing, and an `interrupt()` /
-`Command(resume=...)` human-in-the-loop step before any write to
-`routes.yaml` (every proposed edit is also re-validated through the same
-`AppConfig` model the batch job uses, so a bad edit can't reach disk).
+## What makes it more than a price alert
 
-Terminal:
-```bash
-python -m src.assistant.cli
-```
+- 🧠 **Judges deals like a person would.** Instead of one hardcoded
+  price, it learns each route's typical cost over time and flags
+  anything meaningfully below that — plus a hard safety-net price for
+  "always tell me about this."
+- 💬 **You can just talk to it.** A built-in chat assistant lets you
+  add, tweak, or remove tracked routes in plain English — no config
+  files to hand-edit. It always asks for a yes before it changes
+  anything.
+- 🌍 **Can go looking, not just checking.** For open-ended trips
+  ("somewhere cheap in Europe this weekend"), it explores options itself
+  rather than needing an exact destination up front.
+- ✍️ **Writes its own alerts.** The notification you get isn't a raw
+  price dump — an AI model writes a short, human summary of why the
+  deal is worth your attention.
+- 🩺 **Watches its own health.** If a check silently breaks — a bad
+  run, a dead schedule — that's visible on a monitoring dashboard, not
+  discovered three weeks later as "huh, I haven't gotten any alerts."
 
-Browser, for hosting on the VPS:
-```bash
-uvicorn src.assistant.web:app --host 127.0.0.1 --port 8787
-```
-Gated by HTTP Basic Auth (`ASSISTANT_WEB_USER` / `ASSISTANT_WEB_PASSWORD` in
-`.env` — the app refuses to start without a password set), and meant to sit
-behind the box's existing Nginx for TLS/external access rather than being
-exposed directly. Deploy as a systemd service:
-```bash
-sudo cp deploy/travel-assistant-web.service /etc/systemd/system/
-sudo systemctl enable --now travel-assistant-web
-```
+## Why this project exists
 
-The CLI and web UI keep independent conversation histories (separate
-LangGraph `thread_id`s) in the same local SQLite checkpoint file
-(`ASSISTANT_STATE_DB`), so either one can be killed and resumed later
-without losing context.
+Two reasons: it's something I actually use to catch cheap weekend trips
+out of Brussels, and it's a hands-on demonstration of building an AI
+agent that makes real decisions with real money on the line — safely,
+with a human always in the loop for anything that changes its
+configuration, not just a chatbot wrapper.
 
-### Public demo
+<div align="center">
 
-`src/demo/` is a separate, much narrower app meant to be linked publicly —
-unlike the assistant, it has **no auth and no config-mutating tools at
-all**. A visitor types a free-text request, one cheap Claude call (Haiku,
-forced tool-choice, no agent loop) extracts the route, and — only for
-Brussels ↔ Paris, the one route Flixbus has real city IDs mapped for (see
-`CITY_IDS` in `src/collectors/flixbus.py`) — a real live Flixbus price gets
-fetched and scored through the same `evaluate()` threshold logic the batch
-job uses. Anything else gets a friendly decline instead of a fabricated
-price. Nothing is written anywhere (no InfluxDB write, no config write),
-and it's rate-limited to one exchange per visitor per day plus a global
-daily cap, both enforced server-side via a small SQLite file
-(`src/demo/rate_limit.py`) so the limit survives a restart.
+**[🚀 Try the live demo →](https://example.com/travel-demo)**
 
-```bash
-uvicorn src.demo.app:app --host 127.0.0.1 --port 8788
-```
-```bash
-sudo cp deploy/travel-demo.service /etc/systemd/system/
-sudo systemctl enable --now travel-demo
-```
-Same pattern as the assistant web UI: binds to localhost only, put it
-behind Nginx for TLS/external access. Tune `DEMO_GLOBAL_DAILY_CAP` and
-`DEMO_MODEL` in `.env` if needed.
+</div>
 
-## Roadmap
+---
 
-1. ✅ Config schema, date logic, Flixbus collector, storage, thresholds, notify, digest
-2. ✅ Flight collector: agentic Playwright browsing against live Skyscanner
-3. ✅ Run metrics export (Prometheus) for silent-failure visibility — Grafana
-   alert rule on `travel_agent_last_success_unixtime` still to be set up on
-   the VPS
-4. ✅ Conversational assistant (LangGraph) for config edits + price Q&A, terminal and web
-5. ✅ Public, rate-limited demo app for the README link
-6. Grafana panel over the `travel_deals` bucket for a price-history view
-7. Turn `src/agent/digest.py` into an actual planning step: given a daily
-   request budget, have the model choose which routes/dates are worth
-   checking rather than iterating every candidate date deterministically
-8. Optional: self-host the Flixbus API wrapper in Docker on the VPS instead
-   of depending on the public community instance
+<div align="center">
+
+🛠️ Curious how it's actually built? **[Read the technical write-up →](docs/ARCHITECTURE.md)**
+
+</div>
